@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI Playground</title>
+<!-- Мост MAX: внутри MAX даёт window.WebApp; в обычном браузере скрипт может не загрузиться — код это переживает -->
+<script src="https://st.max.ru/js/max-web-app.js" async onerror="void 0"></script>
+<style>
+  :root { --bg:#0b1030; --card:#161c4a; --accent:#5ac8ff; --accent2:#9b7bff; --text:#eaf2ff; --muted:#9fb0d8; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font:16px/1.4 -apple-system,"SF Pro Text","Segoe UI",Roboto,Arial,sans-serif; color:var(--text);
+         background:radial-gradient(900px 500px at 50% -10%, #2a2f7a 0%, var(--bg) 60%); min-height:100vh;
+         padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom)); }
+  h1 { font-size:22px; margin:4px 0 2px; } .sub { color:var(--muted); font-size:14px; margin-bottom:14px; }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; }
+  .tab { flex:1; padding:10px 6px; border:0; border-radius:12px; background:var(--card); color:var(--muted); font:inherit; font-size:14px; }
+  .tab.on { background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#06102a; font-weight:600; }
+  .card { background:var(--card); border-radius:20px; padding:18px; margin-bottom:14px; box-shadow:0 6px 30px #0006; }
+  .big { font-size:48px; font-weight:700; text-align:center; margin:6px 0 12px; }
+  .row { display:flex; gap:10px; } .row > * { flex:1; }
+  button.btn { border:0; border-radius:12px; padding:13px; font:inherit; font-weight:600; color:#06102a;
+               background:linear-gradient(135deg,var(--accent),var(--accent2)); }
+  button.btn.ghost { background:#242b66; color:var(--text); }
+  button:active { transform:scale(.97); }
+  .quote { font-size:18px; min-height:80px; } .hint { color:var(--muted); font-size:13px; margin-top:8px; }
+  .chip { display:inline-block; margin:4px 6px 0 0; padding:8px 12px; border-radius:999px; background:#242b66; border:1px solid transparent; }
+  .chip.on { border-color:var(--accent); color:var(--accent); }
+  .hide { display:none; } .who { color:var(--muted); font-size:13px; text-align:center; margin-top:6px; }
+</style>
+</head>
+<body>
+  <h1>🤖 AI Playground</h1>
+  <div class="sub" id="hello">Тестовое мини-приложение канала «Тест»</div>
+
+  <div class="tabs">
+    <button class="tab on" data-t="clicker">⚡ Кликер</button>
+    <button class="tab" data-t="ideas">💡 Идеи</button>
+    <button class="tab" data-t="poll">🗳 Опрос</button>
+  </div>
+
+  <section id="clicker" class="card">
+    <div class="big" id="count">0</div>
+    <div class="row">
+      <button class="btn" id="plus">+1 к мощности ИИ</button>
+      <button class="btn ghost" id="reset">Сброс</button>
+    </div>
+    <div class="hint" id="level">Уровень: Калькулятор</div>
+  </section>
+
+  <section id="ideas" class="card hide">
+    <div class="quote" id="idea">Нажмите кнопку — получите идею про будущее технологий.</div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn" id="newIdea">Новая идея</button>
+      <button class="btn ghost" id="copyIdea">Копировать</button>
+    </div>
+  </section>
+
+  <section id="poll" class="card hide">
+    <div><b>Что изменит мир сильнее всего?</b></div>
+    <div id="opts"></div>
+    <div class="hint" id="pollRes">Голос пока не отдан (хранится только на этом устройстве).</div>
+  </section>
+
+  <div class="row"><button class="btn ghost" id="close">Закрыть приложение</button></div>
+  <div class="who" id="who"></div>
+
+<script>
+(function () {
+  var W = window.WebApp || null;               // MAX Bridge, может отсутствовать вне MAX
+  function haptic(kind) { try { W && W.HapticFeedback && W.HapticFeedback.impactOccurred(kind || 'light'); } catch (e) {} }
+  function $(id) { return document.getElementById(id); }
+  var store = { get: function (k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+                set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+
+  try { W && W.ready && W.ready(); } catch (e) {}
+  try {                                         // приветствие по имени, если MAX его передал
+    var u = W && W.initDataUnsafe && W.initDataUnsafe.user;
+    if (u && u.first_name) { $('hello').textContent = 'Привет, ' + u.first_name + '! Это тест мини-приложения.'; }
+    $('who').textContent = W ? 'Открыто внутри MAX' : 'Открыто в браузере (вне MAX)';
+  } catch (e) {}
+
+  // вкладки
+  document.querySelectorAll('.tab').forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll('.tab').forEach(function (x) { x.classList.toggle('on', x === b); });
+      ['clicker', 'ideas', 'poll'].forEach(function (id) { $(id).classList.toggle('hide', id !== b.dataset.t); });
+      haptic('light');
+    };
+  });
+
+  // кликер
+  var levels = [[0, 'Калькулятор'], [10, 'Чат-бот'], [25, 'Ассистент'], [50, 'Агент'], [100, 'AGI (почти)']];
+  var n = store.get('count', 0);
+  function draw() {
+    $('count').textContent = n;
+    var l = levels[0][1]; levels.forEach(function (x) { if (n >= x[0]) l = x[1]; });
+    $('level').textContent = 'Уровень: ' + l;
+  }
+  $('plus').onclick = function () { n++; store.set('count', n); draw(); haptic(n % 10 === 0 ? 'heavy' : 'light'); };
+  $('reset').onclick = function () { n = 0; store.set('count', 0); draw(); haptic('medium'); };
+  draw();
+
+  // идеи
+  var ideas = ['Персональный ИИ-врач, который знает вас лучше любого справочника.',
+    'Города, где транспорт сам подстраивается под ваше расписание.',
+    'Учитель, который объясняет любую тему именно вашим языком.',
+    'Агенты, которые ведут рутину, пока вы занимаетесь творчеством.',
+    'Лаборатории, где ИИ придумывает новые материалы за дни, а не годы.',
+    'Перевод речи в реальном времени — язык больше не барьер.'];
+  var last = -1, cur = '';
+  function newIdea() { var i; do { i = Math.floor(Math.random() * ideas.length); } while (i === last); last = i; cur = ideas[i]; $('idea').textContent = '💡 ' + cur; haptic('light'); }
+  $('newIdea').onclick = newIdea;
+  $('copyIdea').onclick = function () {
+    if (!cur) { newIdea(); }
+    try { navigator.clipboard.writeText(cur); $('copyIdea').textContent = 'Скопировано ✓'; setTimeout(function () { $('copyIdea').textContent = 'Копировать'; }, 1400); } catch (e) {}
+    haptic('medium');
+  };
+
+  // опрос
+  var opts = ['🧬 Биотех', '🤖 Роботы', '⚛️ Квантовые вычисления', '🚀 Космос'];
+  var vote = store.get('vote', -1);
+  function drawPoll() {
+    $('opts').innerHTML = '';
+    opts.forEach(function (o, i) {
+      var s = document.createElement('span'); s.className = 'chip' + (i === vote ? ' on' : ''); s.textContent = o;
+      s.onclick = function () { vote = i; store.set('vote', i); drawPoll(); haptic('medium'); };
+      $('opts').appendChild(s);
+    });
+    $('pollRes').textContent = vote < 0 ? 'Голос пока не отдан (хранится только на этом устройстве).' : 'Ваш выбор: ' + opts[vote];
+  }
+  drawPoll();
+
+  $('close').onclick = function () { try { W && W.close ? W.close() : window.close(); } catch (e) {} };
+})();
+</script>
+</body>
+</html>
